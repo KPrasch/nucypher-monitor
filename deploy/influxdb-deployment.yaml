@@ -1,0 +1,38 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  annotations:
+    kompose.cmd: /snap/kompose/1/./kompose-linux-amd64 --file docker-compose.yml convert
+    kompose.version: 1.18.0 (06a2e56)
+  creationTimestamp: null
+  labels:
+    io.kompose.service: influxdb
+  name: influxdb
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        io.kompose.service: influxdb
+    spec:
+      containers:
+      - image: influxdb:latest
+        name: influxdb
+        ports:
+        - containerPort: 8086
+        - containerPort: 8082
+        - containerPort: 8089
+          protocol: UDP
+        resources: {}
+        volumeMounts:
+        - mountPath: /var/lib/influxdb
+          name: influxdb-claim0
+      restartPolicy: Always
+      volumes:
+      - name: influxdb-claim0
+        persistentVolumeClaim:
+          claimName: influxdb-claim0
+status: {}

@@ -1,0 +1,8 @@
+apiVersion: v1
+data:
+  NUCYPHER_NETWORK: cassandra
+  WEB3_PROVIDER_URI: http://54.215.168.122:8545
+kind: ConfigMap
+metadata:
+  name: crawler-config
+

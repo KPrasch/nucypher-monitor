@@ -1,0 +1,32 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  creationTimestamp: null
+  labels:
+    io.kompose.service: crawler
+  name: crawler
+spec:
+  containers:
+    image: nucypher-monitor:latest
+    name: crawler
+    command: ["crawl",
+              "--influx-host", "172.28.1.2",
+              "--provider", "$(WEB3_PROVIDER_URI)",
+              "--network", "$(NUCYPHER_NETWORK)"]
+    env:
+      - name: WEB3_PROVIDER_URI
+        valueFrom:
+          configMapKeyRef:
+            name: crawler-config
+            key: WEB3_PROVIDER_URI
+      - name: NUCYPHER_NETWORK
+        valueFrom:
+          configMapKeyRef:
+            name: crawler-config
+            key: NUCYPHER_NETWORK
+    ports:
+    - containerPort: 9151
+    - containerPort: 9555
+    resources: {}
+  restartPolicy: OnFailure
+status: {}
