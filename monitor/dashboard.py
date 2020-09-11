@@ -1,6 +1,8 @@
 import json
 from datetime import datetime, timedelta
+from os import path
 
+import IP2Location
 import dash_html_components as html
 import maya
 import requests
@@ -8,7 +10,16 @@ from dash import Dash
 from dash.dependencies import Output, Input, State
 from flask import Flask
 from maya import MayaDT
-from twisted.logger import Logger
+from nucypher.blockchain.eth.agents import (
+    StakingEscrowAgent,
+    ContractAgency,
+    NucypherTokenAgent,
+    PolicyManagerAgent,
+    AdjudicatorAgent
+)
+from nucypher.blockchain.eth.registry import InMemoryContractRegistry
+from nucypher.blockchain.eth.token import NU
+from nucypher.utilities.logging import Logger
 
 from monitor import layout, components, settings
 from monitor.charts import (
@@ -20,18 +31,7 @@ from monitor.charts import (
 from monitor.components import make_contract_row
 from monitor.crawler import Crawler
 from monitor.db import CrawlerInfluxClient
-from nucypher.blockchain.eth.agents import (
-    StakingEscrowAgent,
-    ContractAgency,
-    NucypherTokenAgent,
-    PolicyManagerAgent,
-    AdjudicatorAgent
-)
-from nucypher.blockchain.eth.registry import InMemoryContractRegistry
-from nucypher.blockchain.eth.token import NU
-from os import path
 
-import IP2Location
 
 class Dashboard:
     """

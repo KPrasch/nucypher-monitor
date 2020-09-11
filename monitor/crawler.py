@@ -3,7 +3,7 @@ import random
 import sqlite3
 import time
 from collections import defaultdict
-from typing import Tuple
+from typing import Tuple, Callable
 
 import click
 import maya
@@ -30,7 +30,9 @@ from nucypher.config.storages import ForgetfulNodeStorage
 from nucypher.network.nodes import FleetSensor, Teacher
 from nucypher.network.nodes import Learner
 from twisted.internet import task, reactor
-from twisted.logger import Logger
+from twisted.internet.defer import Deferred
+from nucypher.utilities.logging import Logger
+
 
 from monitor.utils import collector
 
@@ -584,6 +586,8 @@ class Crawler(Learner):
         data = list()
         for node in known_nodes:
 
+            time.sleep(0.1)  # slow the fuck down, other threads need websocket control too!
+
             staker_address = node.checksum_address
             worker = agent.get_worker_from_staker(staker_address)
 
@@ -605,7 +609,7 @@ class Crawler(Learner):
 
             last_confirmed_period = agent.get_last_committed_period(staker_address)
 
-            num_work_orders = 0  # len(node.work_orders())  # TODO: Only works for is_me with datastore attached
+            num_work_orders = 0
 
             # TODO: do we need to worry about how much information is in memory if number of nodes is
             #  large i.e. should I check for size of data and write within loop if too big
@@ -655,6 +659,12 @@ class Crawler(Learner):
         else:
             self.log.critical(f'Unhandled error: {cleaned_traceback}')
 
+    @staticmethod
+    def schedule_task(task, errback: Callable, interval: int, now: bool) -> Deferred:
+        d = task.start(interval=interval, now=now)
+        d.addErrback(errback)
+        return d
+
     def start(self, eager: bool = False):
         """Start the crawler if not already running"""
         if not self.is_running:
@@ -672,23 +682,34 @@ class Crawler(Learner):
                 # self.crawler_influx_client = CrawlerInfluxClient()
 
             # start tasks
-            node_learner_deferred = self._node_details_task.start(
-                interval=random.randint(int(self._refresh_rate * (1 - self.REFRESH_RATE_WINDOW)), self._refresh_rate),
-                now=eager)
-            time.sleep(random.randint(2, 10))  # random stagger start of task
-            collection_deferred = self._stats_collection_task.start(
-                interval=random.randint(self._refresh_rate, int(self._refresh_rate * (1 + self.REFRESH_RATE_WINDOW))),
-                now=eager)
+            the_final_countdown = 3  # TODO: or not
 
-            # get known last event block
-            self.__events_from_block = self._get_last_known_blocknumber()
-            time.sleep(random.randint(2, 10))  # random stagger start of task
-            events_deferred = self._events_collection_task.start(interval=self._refresh_rate, now=eager)
+            # Node details
+            floor = int(self._refresh_rate * (1 - self.REFRESH_RATE_WINDOW))
+            reactor.callLater(float(random.randint(0, the_final_countdown)),
+                              self.schedule_task,
+                              errback=self._handle_errors,
+                              task=self._node_details_task,
+                              interval=random.randint(floor, self._refresh_rate),
+                              now=eager)
 
-            # hookup error callbacks
-            node_learner_deferred.addErrback(self._handle_errors)
-            collection_deferred.addErrback(self._handle_errors)
-            events_deferred.addErrback(self._handle_errors)
+            # Token Statistics
+            reactor.callLater(float(random.randint(0, the_final_countdown)),
+                              self.schedule_task,
+                              errback=self._handle_errors,
+                              task=self._stats_collection_task,
+                              interval=self._refresh_rate,
+                              now=eager)
+
+            # Event collector
+            self.__events_from_block = self._get_last_known_blocknumber()  # get known last event block
+            ceiling = int(self._refresh_rate * (1 + self.REFRESH_RATE_WINDOW))
+            reactor.callLater(float(random.randint(0, the_final_countdown)),
+                              self.schedule_task,
+                              errback=self._handle_errors,
+                              task=self._events_collection_task,
+                              interval=random.randint(self._refresh_rate, ceiling),
+                              now=eager)
 
             # Start up
             self.start_learning_loop(now=False)
